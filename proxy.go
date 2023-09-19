@@ -1,12 +1,10 @@
 package main
 
 import (
-	"crypto/tls"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os"
 )
 
 var transport = http.DefaultTransport
@@ -62,8 +60,6 @@ func copyResHeaders(src *http.Response, w http.ResponseWriter) {
 
 // --------------------------------------------------------------------------------//
 func handleRequest(w http.ResponseWriter, r *http.Request) {
-	var err error
-
 	// 3. удалить заголовок Proxy-Connection
 	r.Header.Del("Proxy-Connection")
 
@@ -82,21 +78,6 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	// copy headers from src request to proxy request
 	copyReqHeaders(r, proxyReq)
-
-	if proxyReq.TLS != nil {
-		log.Println("This is a secure request.")
-
-	} else {
-		log.Println("This is an insecure request.")
-	}
-
-	if proxyReq.Method == "CONNECT" {
-		w.Header().Add("Host", proxyReq.Host)
-		w.WriteHeader(http.StatusOK)
-
-		log.Println(w.Header().Get("Host"))
-		return
-	}
 
 	// send proxy request using transport
 	response, err := transport.RoundTrip(proxyReq)
@@ -119,28 +100,15 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 //------------------------------------------------------------------------//
 
 func main() {
-	hostname, _ := os.Hostname()
-	certPEM, keyPEM, err := GenCA(hostname)
-	if err != nil {
-		log.Println("Err with generation CA")
-	}
-	cert, _ := tls.X509KeyPair(certPEM, keyPEM)
-
-	// Create a custom TLS configuration.
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-	}
-
 	// creating server with handleRequest func as a Handler
 	server := http.Server{
-		Addr:      ":8080",
-		Handler:   http.HandlerFunc(handleRequest),
-		TLSConfig: tlsConfig,
+		Addr:    ":8080",
+		Handler: http.HandlerFunc(handleRequest),
 	}
 
 	// starting server
 	log.Println("starting server on :8080")
-	err = server.ListenAndServe()
+	err := server.ListenAndServe()
 	if err != nil {
 		log.Fatalln("error starting proxy server: ", err)
 	}
